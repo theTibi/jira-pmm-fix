@@ -18,6 +18,26 @@ disable-model-invocation: true
 
 Linear workflow. Do **not** skip the **reproduction gate**: no agreed implementation plan until there is an automated repro, a documented manual repro the user accepts, or an explicit stop with repro gap.
 
+## High-Level Flow
+
+```
+ 1. READ JIRA          — Fetch ticket details, understand the bug
+ 2. CREATE BRANCH      — Create a fix branch from the current base before any edits
+ 3. ROUTE TO CODE      — Map ticket scope to managed/agent/admin/api/ui/dashboards/grafana fork
+ 4. REPRODUCE          — Add/run the narrowest test or agreed manual repro
+ 5. LOCAL ENV (IF NEEDED) — Bring up PMM environment/services required for repro
+ 6. BUG NOT REPRODUCED — If repro passes unexpectedly, analyze, propose, and confirm retry
+ 7. PLAN FIX           — Root cause and minimal fix plan
+ 8. IMPLEMENT FIX      — Apply patch per agreed plan
+ 9. CURSOR REVIEW LOOP — Run independent Cursor review; loop to 8 until no important issues
+10. VERIFY             — Re-run repro and broader checks; confirm no regressions
+11. COMMIT & PR        — Commit relevant files, push branch, open PR(s)
+```
+
+Important: proceed with the steps one by one in the order defined above. Don't skip any of them.
+
+If reproduction is **not** confirmed, follow **Step 6** and do not proceed to **Step 7** until reproduction is confirmed.
+
 For command details, see [references/pmm-testing.md](references/pmm-testing.md), [references/feature-build.md](references/feature-build.md), [references/jira-atlassian.md](references/jira-atlassian.md).
 
 ---
@@ -124,7 +144,7 @@ For ambiguous product behavior, wait for explicit user or ticket agreement befor
 - Smallest diff; match existing style and error handling.
 - Do not widen scope (no drive-by refactors).
 - Regenerate API/OpenAPI artifacts when required; commit generated outputs if the repo expects it.
-- Next step is always **§9 Verify** before any **§10** commit or push (see §9 for the “no push without a verification step” rule).
+- Next step is always **§9 Cursor review loop** and then **§10 Verify** before any **§11** commit or push.
 
 ---
 
@@ -134,23 +154,36 @@ Pipe `git diff` into your team’s preferred reviewer (CLI or another model). Cl
 
 ---
 
-## 9. Verify
+## 9. Cursor review loop
+
+Run a dedicated **independent Cursor review** after implementation and before verification.
+
+- Start a fresh reviewer pass (new chat or subagent) and provide ticket context + `git diff`.
+- Ask for adversarial review: correctness, regressions, query logic, missing tests, and risky assumptions.
+- Prefer the strongest available review model when possible (for example, **Claude Opus 4.7** or **Claude 4.6 Opus** in your Cursor setup).
+- Classify findings by severity (high/medium/low).
+- If high/medium issues are found, return to **§7 Implement**, fix, and re-run this step.
+- If no independent review is possible, document that explicitly and continue with manual review notes.
+
+---
+
+## 10. Verify
 
 - Confirm the repro test **failed before** and **passes after** (or equivalent evidence).
 - Run broader tests for touched packages when risk warrants it.
-- **Do not commit or push on code inspection alone**, even when the bug and a one-line fix look obvious from reading the tree. After implementing, **always** run at least one verification step that touches the changed behaviour: targeted `go test`, `api-tests` with a running server (see [references/pmm-testing.md](references/pmm-testing.md)), UI `yarn test` / build for touched packages, `nginx -t` / image smoke if nginx or packaging changed, or an **agreed minimal manual checklist** (e.g. curl against a local or FB server) with outcomes noted in the PR test plan. Only **then** proceed to **§10**.
+- **Do not commit or push on code inspection alone**, even when the bug and a one-line fix look obvious from reading the tree. After implementing, **always** run at least one verification step that touches the changed behaviour: targeted `go test`, `api-tests` with a running server (see [references/pmm-testing.md](references/pmm-testing.md)), UI `yarn test` / build for touched packages, `nginx -t` / image smoke if nginx or packaging changed, or an **agreed minimal manual checklist** (e.g. curl against a local or FB server) with outcomes noted in the PR test plan. Only **then** proceed to **§11**.
 - If verification cannot be run in this environment (no Docker, no external VM, etc.), **stop before commit**: report what was run vs blocked, and ask the user to run the missing step or waive in writing—do not push untested changes by default.
 - Default workflow: after the **component** PR exists, open a **draft** [pmm-submodules](https://github.com/Percona-Lab/pmm-submodules) PR unless the user said **no FB** (e.g. docs-only).
 
 ---
 
-## 10. Commit, push, and open PRs
+## 11. Commit, push, and open PRs
 
-**Order:** complete **§9 Verify** first; **§10** is only after there is concrete evidence (command output, test names, or user-accepted manual results).
+**Order:** complete **§10 Verify** first; **§11** is only after there is concrete evidence (command output, test names, or user-accepted manual results).
 
 **Commit and PR title (default):** use **[Conventional Commits](https://www.conventionalcommits.org/)** style — **`fix: <imperative short description>`** (lowercase `fix`, colon, space, then what changed). Example: `fix: show valkey cluster messages as rate (PMM-14894)`. Put extra context, root cause, and ticket link in the **body** if needed. Omit `(<area>)` scopes unless the repo already standardizes on them (e.g. `fix(ui):`); prefer a clear **`fix:`** subject for consistency.
 
-### 10.1 Component repository (e.g. `percona/pmm`, `percona/grafana`)
+### 11.1 Component repository (e.g. `percona/pmm`, `percona/grafana`)
 
 ```bash
 git add <paths>
@@ -184,10 +217,10 @@ If `gh` is unavailable, use the compare URL GitHub shows after push.
 
 ## Test plan
 - [ ] ...
-- [ ] **pmm-submodules (FB) PR:** <add link after step 10.2>
+- [ ] **pmm-submodules (FB) PR:** <add link after step 11.2>
 ```
 
-### 10.2 `Percona-Lab/pmm-submodules` (draft Feature Build PR)
+### 11.2 `Percona-Lab/pmm-submodules` (draft Feature Build PR)
 
 **Default:** after the component PR branch is pushed, also open a **draft** PR in **[Percona-Lab/pmm-submodules](https://github.com/Percona-Lab/pmm-submodules)** targeting **`v3`**, using the **same branch name** as the component work (**`fix-pmm-<id>`**, no `/`). Skip this step only when the user explicitly opts out (documentation-only, submodule-only infra, etc.).
 
