@@ -42,3 +42,7 @@ jira-pmm-fix PMM-15030 implement
 ```
 
 The skill guides the full implementation lifecycle and enforces verification before commit/push.
+
+## Inspiration for this Skill
+
+https://github.com/inikep/sh/tree/master/LLM/skills/jira-mtr-fix
