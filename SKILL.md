@@ -18,6 +18,8 @@ disable-model-invocation: true
 
 Linear workflow. Do **not** skip the **reproduction gate**: no agreed implementation plan until there is an automated repro, a documented manual repro the user accepts, or an explicit stop with repro gap.
 
+**Never treat JIRA text alone as proof the bug still exists on current `v3`; verify in current code/runtime first.**
+
 ## High-Level Flow
 
 ```
@@ -63,6 +65,44 @@ After reading the ticket and doing a **light** sanity check (description, commen
 When stopping, be **explicit**: quote what you checked, why the ticket should not drive a fix (or should be handled differently), and what you recommend (e.g. close as Duplicate, resolve as Won’t Fix, open doc ticket, ask reporter for version + repro). **Wait for the user** if they might still want the work (override, different scope, or “implement anyway for learning”).
 
 Only proceed to **§2 Create branch** when the ticket **passes this triage** or the user **explicitly overrides** after your stop.
+
+### Reality gate (mandatory before branch + implementation)
+
+Before creating a branch or planning a fix, gather reality evidence on current base (`v3`):
+
+1. **Ticket state check**: status, fix notes/comments, linked PRs.
+2. **Code presence check**: quick search on current tree for likely existing fix.
+3. **Runtime/repro check**: attempt the smallest reproducible check on current `v3` (test/manual).
+
+If evidence shows the issue is already fixed/obsolete, **stop** and ask the user whether to:
+
+- close as already fixed / no action,
+- do regression verification only,
+- or run **comparison-only mode** explicitly.
+
+Do not implement by default in this case.
+
+### Evidence contract (must be written before §6/§7)
+
+Before moving to **§6 Plan fix** or **§7 Implement**, record this block in your response:
+
+```markdown
+## Reality evidence
+- Repro status on current base: <failed | passed | not runnable>
+- Evidence: <test/log/manual steps/screenshot>
+- Current-tree fix check: <not found | found candidate + notes>
+- Decision: <implement | stop | comparison-only override>
+```
+
+Without this block, do not implement.
+
+### Comparison-only mode (explicit user override)
+
+Use this only when the user explicitly asks to compare against an existing/known fix.
+
+- Create a **local-only branch** (`local-compare-pmm-<id>` preferred).
+- Do not push/PR unless user later asks.
+- Clearly label output as comparison work, not confirmed production fix.
 
 ---
 
@@ -129,6 +169,8 @@ Always prefer **Makefile and README in the checkout** over memorized flags.
 ---
 
 ## 6. Plan the fix (after repro)
+
+**Hard precondition:** do not start this step unless reality evidence confirms either (a) failing repro, (b) agreed manual failing repro, or (c) explicit user override for comparison-only mode.
 
 - Trace the failing path (handler → service → DB, or UI data flow).
 - State root cause in plain language.
